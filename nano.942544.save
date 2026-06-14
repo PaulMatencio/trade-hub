@@ -1,0 +1,11 @@
+import TradeHubLogo from '@/app/ui/tradehub-logo';
+import Link from 'next/link';
+import style from '@/app/ui/home.module.css';
+
+// ...
+<div className={style.circle} />
+<p className={`text-5xl text-white md:text-3xl md:leading-normal`}>
+  <strong>Welcome to TradeHub!</strong>
+</p>
+// ...
+  
