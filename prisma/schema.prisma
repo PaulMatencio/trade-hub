@@ -1,0 +1,44 @@
+// Define database connection via the `DATABASE_URL` env var
+datasource db {
+  provider = "postgresql"
+}
+
+// Define generator
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id       String @id @default(uuid()) @db.Uuid
+  name     String @db.VarChar(255)
+  email    String @unique
+  password String
+
+  @@map("users")
+}
+
+model Invoice {
+  id        String   @id @default(uuid()) @db.Uuid
+  seller_id String   @db.Uuid
+  amount    Int
+  status    String   @db.VarChar(255)
+  date      DateTime @db.Date
+
+  @@map("invoices")
+}
+
+model Seller {
+  id        String @id @default(uuid()) @db.Uuid
+  name      String @db.VarChar(255)
+  email     String @db.VarChar(255)
+  image_url String @db.VarChar(255)
+
+  @@map("sellers")
+}
+
+model Income {
+  month  String @id @db.VarChar(4)
+  income Int
+
+  @@map("income")
+}
