@@ -1,9 +1,26 @@
 import { generateYAxis } from '@/app/lib/utils';
 import { CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { poppins } from '@/app/ui/fonts';
+import { fetchIncome } from '@/app/lib/data';
 import { Income } from '@/app/lib/definitions';
 
-export default async function IncomeChart({ income }: { income: Income[] }) {
+export default async function IncomeChart() {
+  let income: Income[] = [];
+  try {
+    income = await fetchIncome();
+  } catch (error) {
+    console.error('Failed to fetch income:', error);
+    return (
+      <div className="w-full md:col-span-4">
+        <h2 className={`${poppins.className} mb-4 text-xl text-white md:text-2xl`}>
+          Current Income
+        </h2>
+        <div className="rounded-xl bg-neutral-700 p-6 text-center">
+          <p className="text-red-400 font-medium">Failed to load chart data.</p>
+        </div>
+      </div>
+    );
+  }
   const chartHeight = 350;
   // Attention! Uncomment this section when you reach this stage in the course.
 
