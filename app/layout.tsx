@@ -1,6 +1,8 @@
+
 import '@/app/ui/global.css';
-import { poppins } from "./ui/fonts";
 import { rubik } from "./ui/fonts";
+import { Toaster } from 'sonner';
+
 export default function RootLayout({
   children,
 }: {
@@ -8,7 +10,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${rubik.className} bg-black antialiased`}>{children}</body>
+      <body className={`${rubik.className} bg-black antialiased`}>
+        {children}
+        <Toaster position="top-right" richColors />
+      </body>
     </html>
   );
 }

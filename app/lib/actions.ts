@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { prisma } from './prisma';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import bcrypt from 'bcrypt';
 
 // Define the form schema using Zod for validation
 const FormSchema = z.object({
@@ -115,3 +116,87 @@ export async function updateInvoice(id: string, prevState: State, formData: Form
 
 
 
+import { signIn } from '@/auth';
+import { AuthError } from 'next-auth';
+
+// ... other actions
+
+export async function authenticate(
+    prevState: string | undefined,
+    formData: FormData,
+) {
+    try {
+        await signIn('credentials', formData);
+    } catch (error) {
+        if (error instanceof AuthError) {
+            switch (error.type) {
+                case 'CredentialsSignin':
+                    return 'Invalid credentials.';
+                default:
+                    return 'Something went wrong.';
+            }
+        }
+        throw error;
+    }
+}
+
+const SignUpSchema = z.object({
+  name: z.string().min(2, 'Name must be at least 2 characters.'),
+  email: z.string().email('Invalid email address.'),
+  password: z.string().min(6, 'Password must be at least 6 characters.'),
+});
+
+export type RegisterState = {
+  errors?: {
+    name?: string[];
+    email?: string[];
+    password?: string[];
+  };
+  message?: string | null;
+};
+
+export async function signUp(prevState: RegisterState, formData: FormData) {
+  const validatedFields = SignUpSchema.safeParse({
+    name: formData.get('name'),
+    email: formData.get('email'),
+    password: formData.get('password'),
+  });
+
+  if (!validatedFields.success) {
+    return {
+      errors: validatedFields.error.flatten().fieldErrors,
+      message: 'Failed to create account. Please fix the errors below.',
+    };
+  }
+
+  const { name, email, password } = validatedFields.data;
+
+  try {
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (existingUser) {
+      return {
+        message: 'An account with this email address already exists.',
+      };
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    await prisma.user.create({
+      data: {
+        name,
+        email,
+        password: hashedPassword,
+      },
+    });
+  } catch (error) {
+    console.error('Database Error: Failed to register user.', error);
+    return {
+      message: 'Database error. Failed to create account.',
+    };
+  }
+
+  redirect('/login');
+}

@@ -3,6 +3,7 @@ export type User = {
   name: string;
   email: string;
   password: string;
+  role: 'USER' | 'SELLER' | 'ADMIN';
 };
 
 export type Seller = {
