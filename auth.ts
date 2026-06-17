@@ -1,6 +1,7 @@
 import NextAuth from 'next-auth';
 import { authConfig } from './auth.config';
 import Credentials from 'next-auth/providers/credentials';
+import Google from 'next-auth/providers/google';
 import { z } from 'zod';
 import { prisma } from './app/lib/prisma';
 import type { User } from './app/lib/definitions';
@@ -17,7 +18,7 @@ async function getUser(email: string): Promise<User | undefined> {
 }
 
 
-export const { auth, signIn, signOut } = NextAuth({
+export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
     ...authConfig,
     providers: [
         Credentials({
@@ -37,11 +38,34 @@ export const { auth, signIn, signOut } = NextAuth({
                 return null;
             },
         }),
+        Google({
+            clientId: process.env.AUTH_GOOGLE_ID,
+            clientSecret: process.env.AUTH_GOOGLE_SECRET,
+        }),
     ],
     callbacks: {
-        async jwt({ token, user }) {
+        async jwt({ token, user, account }) {
             if (user) {
-                token.role = user.role;
+                if (account?.provider === 'google') {
+                    const dbUser = await prisma.user.findUnique({
+                        where: { email: user.email! },
+                    });
+                    if (dbUser) {
+                        token.role = dbUser.role;
+                    } else {
+                        const newUser = await prisma.user.create({
+                            data: {
+                                name: user.name || 'Google User',
+                                email: user.email!,
+                                password: '', // Passwordless
+                                role: 'USER',
+                            },
+                        });
+                        token.role = newUser.role;
+                    }
+                } else {
+                    token.role = user.role;
+                }
             }
             return token;
         },
@@ -53,3 +77,4 @@ export const { auth, signIn, signOut } = NextAuth({
         },
     },
 });
+
