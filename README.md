@@ -22,6 +22,7 @@ Trade Hub is a modern financial dashboard and invoices management application bu
 1. **Secure Authentication:**
    * Custom Credentials sign-in provider powered by NextAuth.js.
    * Secure server-side password verification using `bcrypt`.
+   * Social sign-in integration with **Google** and **GitHub** OAuth providers.
 2. **User Sign-Up Flow:**
    * Client-side form with real-time feedback and server-action driven registration.
    * Duplicate account protection and automatic password hashing.
@@ -58,7 +59,14 @@ Configure your database and NextAuth credentials in `.env`:
 ```env
 DATABASE_URL=your_postgresql_database_connection_string
 AUTH_SECRET=your_nextauth_secret_key
-AUTH_URL=http://localhost:3000/api/auth
+
+# Google OAuth Keys
+AUTH_GOOGLE_ID=your_google_client_id
+AUTH_GOOGLE_SECRET=your_google_client_secret
+
+# GitHub OAuth Keys
+AUTH_GITHUB_ID=your_github_client_id
+AUTH_GITHUB_SECRET=your_github_client_secret
 ```
 
 ### 4. Database Setup & Sync
