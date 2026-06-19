@@ -36,6 +36,67 @@ Trade Hub is a modern financial dashboard and invoices management application bu
 5. **Interactive UI Notifications:**
    * Integration with Sonner for beautiful, non-intrusive toast messages.
 
+
+---
+
+## 🏗️ Clean Architecture
+
+The codebase strictly adheres to **Clean Architecture** principles. The application is divided into decoupled layers where source code dependencies only point inwards:
+
+```
+                  ┌──────────────────────────────────────────────┐
+                  │                 Presentation                 │
+                  │        (Next.js Pages & Components)          │
+                  └──────┬────────────────────────────────┬──────┘
+                         │                                │
+                         ▼ (Controllers / Actions)        ▼ (Adapters)
+  ┌──────────────────────────────────────────────────────────────┐
+  │                        Infrastructure                        │
+  │                  (Prisma Client / NextAuth)                  │
+  └──────┬────────────────────────────────────────────────┬──────┘
+         │                                                │
+         ▼ (Implementations)                              ▼ (Registry / DI)
+  ┌───────────────┐                              ┌───────────────┐
+  │   Adapters    │                              │ DI Container  │
+  │ (Repositories)│                              │  (container)  │
+  └──────┬────────┘                              └──────┬────────┘
+         │                                              │
+         │   ┌──────────────────────────────────────────┘
+         │   │ (Injects Repositories into Use Cases)
+         ▼   ▼
+  ┌──────────────────────────────────────────────────────────────┐
+  │                      Application Layer                       │
+  │               (Use Cases & Port Interfaces)                  │
+  └──────┬───────────────────────────────────────────────────────┘
+         │
+         ▼ (Entity rules)
+  ┌──────────────────────────────────────────────────────────────┐
+  │                         Domain Layer                         │
+  │                 (Entities & Core Validations)                │
+  └──────────────────────────────────────────────────────────────┘
+```
+
+### Layers & Directory Structure
+
+1. **Domain Layer (`src/domain/`)**
+   * Core entities and enterprise business rules.
+   * Completely independent of databases, HTTP APIs, frameworks, or external packages.
+   * *Example:* [user.ts](file:///home/paul/react/trade-hub/src/domain/entities/user.ts) performs basic email format verification and role validation inside the `User` class.
+
+2. **Application Layer (`src/application/`)**
+   * Application-specific business rules. Orchestrates the flow of data to and from entities.
+   * Contains **Use Cases** (such as `CreateInvoiceUseCase`, `RegisterUserUseCase`) and abstract interface ports for repositories and services.
+   * Declares interfaces like `IUserRepository` and `IPasswordHasher` to decouple logic from the database and encryption libraries.
+
+3. **Interface Adapters Layer (`src/adapters/`)**
+   * Adapts data from database formats to domain structures and vice versa.
+   * Contains repository implementations mapping Prisma operations (e.g. `PrismaInvoiceRepository` implementing `IInvoiceRepository`) and adapters like `BcryptPasswordHasher` wrapping external libraries.
+
+4. **Infrastructure Layer (`src/infrastructure/`, `app/`)**
+   * Frameworks, drivers, and external delivery mechanisms (Next.js App router, Server Actions, NextAuth).
+   * **Dependency Injection Container** ([container.ts](file:///home/paul/react/trade-hub/src/infrastructure/di/container.ts)) is placed here to instantiate and link repositories, services, and use cases, resolving concrete types at runtime.
+   * Server actions ([actions.ts](file:///home/paul/react/trade-hub/app/lib/actions.ts)) and data selectors ([data.ts](file:///home/paul/react/trade-hub/app/lib/data.ts)) act as thin controllers that execute the underlying Use Cases.
+
 ---
 
 ## 🛠️ Getting Started

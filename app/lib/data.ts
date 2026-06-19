@@ -1,18 +1,27 @@
-import { prisma } from './prisma';
-
 import {
   SellerField,
-  SellersTableType,
   InvoiceForm,
   InvoicesTable,
-  LatestInvoiceRaw,
   LatestInvoice,
-  User,
   Income,
   FormattedSellersTable,
+  User,
 } from './definitions';
 import { formatCurrency } from './utils';
 import { unstable_noStore as noStore } from 'next/cache';
+
+import {
+  getIncomeUseCase,
+  getLatestInvoicesUseCase,
+  getCardDataUseCase,
+  getFilteredInvoicesUseCase,
+  getInvoicesPagesUseCase,
+  getInvoiceByIdUseCase,
+  getSellersUseCase,
+  getFilteredSellersUseCase,
+  getUserByEmailUseCase,
+} from '@/src/infrastructure/di/container';
+
 /**
  * Fetches income data from the database.
  * @returns {Promise<Income[]>} A promise that resolves to an array of income data.
@@ -20,8 +29,11 @@ import { unstable_noStore as noStore } from 'next/cache';
 export async function fetchIncome(): Promise<Income[]> {
   noStore();
   try {
-    const data = await prisma.$queryRaw<Income[]>`SELECT * FROM income`;
-    return data;
+    const incomeEntities = await getIncomeUseCase.execute();
+    return incomeEntities.map((ent) => ({
+      month: ent.month,
+      income: ent.income,
+    }));
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch income data.');
@@ -35,18 +47,14 @@ export async function fetchIncome(): Promise<Income[]> {
 export async function fetchLatestInvoices(): Promise<LatestInvoice[]> {
   noStore();
   try {
-    const data = await prisma.$queryRaw<LatestInvoiceRaw[]>`
-      SELECT invoices.amount, sellers.name, sellers.image_url, sellers.email, invoices.id
-      FROM invoices
-      JOIN sellers ON invoices.seller_id = sellers.id
-      ORDER BY invoices.date DESC
-      LIMIT 5`;
-
-    const latestInvoices = data.map((invoice: LatestInvoiceRaw) => ({
-      ...invoice,
+    const latestRaw = await getLatestInvoicesUseCase.execute();
+    return latestRaw.map((invoice) => ({
+      id: invoice.id,
+      name: invoice.name,
+      image_url: invoice.image_url,
+      email: invoice.email,
       amount: formatCurrency(invoice.amount),
     }));
-    return latestInvoices;
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch the latest invoices.');
@@ -65,33 +73,12 @@ export async function fetchCardData(): Promise<{
 }> {
   noStore();
   try {
-    const invoiceCountPromise = prisma.$queryRaw<Array<{ count: string | number }>>`SELECT COUNT(*) FROM invoices`;
-    const sellerCountPromise = prisma.$queryRaw<Array<{ count: string | number }>>`SELECT COUNT(*) FROM sellers`;
-    const invoiceStatusPromise = prisma.$queryRaw<Array<{ fulfilled: number | null; awaiting: number | null }>>`SELECT
-         SUM(CASE WHEN status = 'fulfilled' THEN amount ELSE 0 END) AS "fulfilled",
-         SUM(CASE WHEN status = 'awaiting' THEN amount ELSE 0 END) AS "awaiting"
-         FROM invoices`;
-
-    const data = await Promise.all([
-      invoiceCountPromise,
-      sellerCountPromise,
-      invoiceStatusPromise,
-    ]);
-
-    const numberOfInvoices = Number(data[0][0]?.count ?? '0');
-    const numberOfSellers = Number(data[1][0]?.count ?? '0');
-    const totalFulfilledInvoices = formatCurrency(
-      Number(data[2][0]?.fulfilled ?? 0),
-    );
-    const totalAwaitingInvoices = formatCurrency(
-      Number(data[2][0]?.awaiting ?? 0),
-    );
-
+    const data = await getCardDataUseCase.execute();
     return {
-      numberOfSellers,
-      numberOfInvoices,
-      totalFulfilledInvoices,
-      totalAwaitingInvoices,
+      numberOfSellers: data.numberOfSellers,
+      numberOfInvoices: data.numberOfInvoices,
+      totalFulfilledInvoices: formatCurrency(data.totalFulfilledInvoices),
+      totalAwaitingInvoices: formatCurrency(data.totalAwaitingInvoices),
     };
   } catch (error) {
     console.error('Database Error:', error);
@@ -105,35 +92,12 @@ export async function fetchCardData(): Promise<{
  * @param {number} currentPage - The current page number for pagination.
  * @returns {Promise<InvoicesTable[]>} A promise that resolves to an array of filtered invoices.
  */
-const ITEMS_PER_PAGE = 6;
 export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
 ): Promise<InvoicesTable[]> {
-  const offset = (currentPage - 1) * ITEMS_PER_PAGE;
-
   try {
-    const invoices = await prisma.$queryRaw<InvoicesTable[]>`
-      SELECT
-        invoices.id,
-        invoices.amount,
-        invoices.date,
-        invoices.status,
-        sellers.name,
-        sellers.email,
-        sellers.image_url
-      FROM invoices
-      JOIN sellers ON invoices.seller_id = sellers.id
-      WHERE
-        sellers.name ILIKE ${`%${query}%`} OR
-        sellers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
-      ORDER BY invoices.date DESC
-      LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
-    `;
-
+    const invoices = await getFilteredInvoicesUseCase.execute(query, currentPage);
     return invoices;
   } catch (error) {
     console.error('Database Error:', error);
@@ -149,18 +113,7 @@ export async function fetchFilteredInvoices(
 export async function fetchInvoicesPages(query: string): Promise<number> {
   noStore();
   try {
-    const count = await prisma.$queryRaw<Array<{ count: string | number }>>`SELECT COUNT(*)
-    FROM invoices
-    JOIN sellers ON invoices.seller_id = sellers.id
-    WHERE
-      sellers.name ILIKE ${`%${query}%`} OR
-      sellers.email ILIKE ${`%${query}%`} OR
-      invoices.amount::text ILIKE ${`%${query}%`} OR
-      invoices.date::text ILIKE ${`%${query}%`} OR
-      invoices.status ILIKE ${`%${query}%`}
-  `;
-
-    const totalPages = Math.ceil(Number(count[0]?.count ?? '0') / ITEMS_PER_PAGE);
+    const totalPages = await getInvoicesPagesUseCase.execute(query);
     return totalPages;
   } catch (error) {
     console.error('Database Error:', error);
@@ -176,23 +129,16 @@ export async function fetchInvoicesPages(query: string): Promise<number> {
 export async function fetchInvoiceById(id: string): Promise<InvoiceForm> {
   noStore();
   try {
-    const data = await prisma.$queryRaw<InvoiceForm[]>`
-      SELECT
-        invoices.id,
-        invoices.seller_id,
-        invoices.amount,
-        invoices.status
-      FROM invoices
-      WHERE invoices.id = ${id}::uuid;
-    `;
-
-    const invoice = data.map((invoice: InvoiceForm) => ({
-      ...invoice,
-      // Convert amount from cents to dollars
-      amount: invoice.amount / 100,
-    }));
-
-    return invoice[0];
+    const invoice = await getInvoiceByIdUseCase.execute(id);
+    if (!invoice) {
+      throw new Error('Invoice not found.');
+    }
+    return {
+      id: invoice.id,
+      seller_id: invoice.seller_id,
+      amount: invoice.amount / 100, // Convert amount from cents to dollars
+      status: invoice.status,
+    };
   } catch (error) {
     console.error('Database Error:', error);
     throw new Error('Failed to fetch invoice.');
@@ -206,15 +152,8 @@ export async function fetchInvoiceById(id: string): Promise<InvoiceForm> {
 export async function fetchSellers(): Promise<SellerField[]> {
   noStore();
   try {
-    const data = await prisma.$queryRaw<SellerField[]>`
-      SELECT
-        id,
-        name
-      FROM sellers
-      ORDER BY name ASC
-    `;
-
-    return data;
+    const sellers = await getSellersUseCase.execute();
+    return sellers;
   } catch (err) {
     console.error('Database Error:', err);
     throw new Error('Failed to fetch all sellers.');
@@ -229,32 +168,16 @@ export async function fetchSellers(): Promise<SellerField[]> {
 export async function fetchFilteredSellers(query: string): Promise<FormattedSellersTable[]> {
   noStore();
   try {
-    const data = await prisma.$queryRaw<SellersTableType[]>`
-		SELECT
-		  sellers.id,
-		  sellers.name,
-		  sellers.email,
-		  sellers.image_url,
-		  COUNT(invoices.id) AS total_invoices,
-		  SUM(CASE WHEN invoices.status = 'awaiting' THEN invoices.amount ELSE 0 END) AS total_awaiting,
-		  SUM(CASE WHEN invoices.status = 'fulfilled' THEN invoices.amount ELSE 0 END) AS total_fulfilled
-		FROM sellers
-		LEFT JOIN invoices ON sellers.id = invoices.seller_id
-		WHERE
-		  sellers.name ILIKE ${`%${query}%`} OR
-        sellers.email ILIKE ${`%${query}%`}
-		GROUP BY sellers.id, sellers.name, sellers.email, sellers.image_url
-		ORDER BY sellers.name ASC
-	  `;
-
-    const sellers = data.map((seller: SellersTableType) => ({
-      ...seller,
+    const sellers = await getFilteredSellersUseCase.execute(query);
+    return sellers.map((seller) => ({
+      id: seller.id,
+      name: seller.name,
+      email: seller.email,
+      image_url: seller.image_url,
       total_invoices: Number(seller.total_invoices),
       total_awaiting: formatCurrency(Number(seller.total_awaiting)),
       total_fulfilled: formatCurrency(Number(seller.total_fulfilled)),
     }));
-
-    return sellers;
   } catch (err) {
     console.error('Database Error:', err);
     throw new Error('Failed to fetch seller table.');
@@ -269,8 +192,17 @@ export async function fetchFilteredSellers(query: string): Promise<FormattedSell
 export async function getUser(email: string): Promise<User | undefined> {
   noStore();
   try {
-    const user = await prisma.$queryRaw<User[]>`SELECT * FROM users WHERE email=${email}`;
-    return user[0];
+    const user = await getUserByEmailUseCase.execute(email);
+    if (!user) {
+      return undefined;
+    }
+    return {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      password: user.passwordHash,
+      role: user.role,
+    };
   } catch (error) {
     console.error('Failed to fetch user:', error);
     throw new Error('Failed to fetch user.');
