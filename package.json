@@ -9,7 +9,8 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-    "deploy": "npx prisma db push && npx vercel --prod"
+    "deploy": "npx prisma db push && npx vercel --prod",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@heroicons/react": "^2.0.18",
