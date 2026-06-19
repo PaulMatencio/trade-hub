@@ -14,6 +14,7 @@ import {
 
 export const { handlers: { GET, POST }, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  debug: true,
   providers: [
     Credentials({
       async authorize(credentials) {
