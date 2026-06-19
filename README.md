@@ -158,3 +158,39 @@ Open [http://localhost:3000](http://localhost:3000) in your browser to view the 
 * **Seller (`sellers`):** Stores information about sellers (name, email, profile image).
 * **Invoice (`invoices`):** Tracks invoices mapped to specific sellers, containing amounts, statuses (`awaiting`/`fulfilled`), and dates.
 * **Income (`income`):** Stores monthly revenue statistics for rendering charts.
+
+---
+
+## 🧪 Testing
+
+The codebase contains a comprehensive unit testing suite focusing on the core domain layer and the decoupled use cases. The suite uses **Vitest**.
+
+### Run Tests Once
+```bash
+npm run test
+```
+
+### Run Tests in Watch Mode
+```bash
+npm run test:watch
+```
+
+---
+
+## 🚀 Deployment
+
+The project is configured for automated database migrations and application deployment.
+
+### 1. Configure Production Environment
+Ensure the following environment variables are set in your hosting platform (e.g., Vercel, Firebase App Hosting, etc.):
+* `DATABASE_URL`: Connection string to your production PostgreSQL database.
+* `AUTH_SECRET`: Secret key for authentication token signing.
+* `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET`: Production Google OAuth client credentials.
+* `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET`: Production GitHub OAuth client credentials.
+
+### 2. Deploy to Production
+To run database schema updates and deploy to production:
+```bash
+npm run deploy
+```
+*(By default, this will run `prisma db push` to synchronize the production PostgreSQL tables with the Prisma schema, and then deploy to Vercel. Customize the `deploy` script in `package.json` to fit your specific cloud platform).*
